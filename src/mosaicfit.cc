@@ -307,7 +307,7 @@ Obs::Obs(int id_, double ra_, double dec_, int ichip_, int iexp_) :
     mag_cat(std::numeric_limits<double>::quiet_NaN())
 {}
 
-void Obs::setUV(lsst::afw::cameraGeom::Ccd::Ptr const &ccd, double x0, double y0) {
+void Obs::setUV(PTR(lsst::afw::cameraGeom::Detector) &ccd, double x0, double y0) {
     lsst::afw::cameraGeom::Orientation ori = ccd->getOrientation();
     double cosYaw = ori.getCosYaw();
     double sinYaw = ori.getSinYaw();
@@ -2735,7 +2735,7 @@ int binomial(int n, int k)
 }
 
 Coeff::Ptr
-lsst::meas::mosaic::convertCoeff(Coeff::Ptr& coeff, lsst::afw::cameraGeom::Ccd::Ptr& ccd)
+lsst::meas::mosaic::convertCoeff(Coeff::Ptr& coeff, PTR(lsst::afw::cameraGeom::Detector)& ccd)
 {
     Poly::Ptr p = Poly::Ptr(new Poly(coeff->p->order));
     Coeff::Ptr newC = Coeff::Ptr(new Coeff(p));
@@ -2980,7 +2980,7 @@ Coeff::Ptr lsst::meas::mosaic::coeffFromTanWcs(lsst::afw::image::Wcs::Ptr& wcs)
 
 lsst::afw::image::Image<float>::Ptr
 lsst::meas::mosaic::getJImg(Coeff::Ptr& coeff,
-			   lsst::afw::cameraGeom::Ccd::Ptr& ccd)
+			   PTR(lsst::afw::cameraGeom::Detector)& ccd)
 {
     double scale = coeff->pixelScale();
     double deg2pix = 1. / scale;
@@ -3083,7 +3083,7 @@ lsst::meas::mosaic::getJImg(lsst::afw::image::Wcs::Ptr& wcs,
 
 lsst::afw::image::Image<float>::Ptr
 lsst::meas::mosaic::getJImg(lsst::afw::image::Wcs::Ptr& wcs,
-			   lsst::afw::cameraGeom::Ccd::Ptr& ccd)
+			   PTR(lsst::afw::cameraGeom::Detector)& ccd)
 {
     int width  = ccd->getAllPixels(true).getWidth();
     int height = ccd->getAllPixels(true).getHeight();

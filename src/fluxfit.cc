@@ -1842,7 +1842,7 @@ void lsst::meas::mosaic::fluxFit(bool absolute,
 }
 
 FluxFitParams::Ptr
-lsst::meas::mosaic::convertFluxFitParams(FluxFitParams::Ptr& ffp, lsst::afw::cameraGeom::Ccd::Ptr& ccd, double x0, double y0)
+lsst::meas::mosaic::convertFluxFitParams(FluxFitParams::Ptr& ffp, PTR(lsst::afw::cameraGeom::Detector)& ccd, double x0, double y0)
 {
     FluxFitParams::Ptr newP = FluxFitParams::Ptr(new FluxFitParams(ffp->order, ffp->chebyshev));
     newP->u_max = 1.0;
@@ -1909,7 +1909,7 @@ lsst::meas::mosaic::metadataFromFluxFitParams(FluxFitParams::Ptr& ffp)
 
 lsst::afw::image::Image<float>::Ptr
 lsst::meas::mosaic::getFCorImg(FluxFitParams::Ptr& p,
-			      lsst::afw::cameraGeom::Ccd::Ptr& ccd,
+			      PTR(lsst::afw::cameraGeom::Detector)& ccd,
 			      Coeff::Ptr& coeff)
 {
     int width  = ccd->getAllPixels(true).getWidth();
@@ -2004,7 +2004,7 @@ lsst::meas::mosaic::getFCorImg(FluxFitParams::Ptr& p, int width, int height)
 
 lsst::afw::image::Image<float>::Ptr
 lsst::meas::mosaic::getFCorImg(FluxFitParams::Ptr& p,
-			      lsst::afw::cameraGeom::Ccd::Ptr& ccd)
+			      PTR(lsst::afw::cameraGeom::Detector)& ccd)
 {
     int width  = ccd->getAllPixels(true).getWidth();
     int height = ccd->getAllPixels(true).getHeight();

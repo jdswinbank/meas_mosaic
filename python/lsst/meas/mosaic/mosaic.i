@@ -24,13 +24,7 @@
 
 %template(map_int_float) std::map<int, float>;
 
-#if 1
-%shared_ptr(lsst::afw::cameraGeom::Detector);
-%shared_ptr(lsst::afw::cameraGeom::Ccd);
-#else
-%import "lsst/afw/cameraGeom/cameraGeom.i"
-#endif
-
+%import "lsst/afw/cameraGeom/cameraGeomLib.i"
 %shared_ptr(lsst::meas::mosaic::Source);
 %shared_ptr(lsst::meas::mosaic::Coeff);
 %shared_ptr(lsst::meas::mosaic::KDTree);
@@ -56,7 +50,7 @@
 %template(SourceMatchGroup) std::vector<std::vector<lsst::meas::mosaic::SourceMatch> >;
 
 %template(WcsDic) std::map<int, lsst::afw::image::Wcs::Ptr>;
-%template(CcdSet) std::map<int, lsst::afw::cameraGeom::Ccd::Ptr>;
+%template(CcdSet) std::map<int, PTR(lsst::afw::cameraGeom::Detector)>;
 %template(CoeffSet) std::map<int, lsst::meas::mosaic::Coeff::Ptr>;
 %template(ObsVec) std::vector<lsst::meas::mosaic::Obs::Ptr>;
 %template(FfpSet) std::map<int, lsst::meas::mosaic::FluxFitParams::Ptr>;

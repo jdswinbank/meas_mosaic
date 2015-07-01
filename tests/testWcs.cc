@@ -51,7 +51,7 @@ int main(int argc, char **argv)
 	lsst::afw::geom::PointD center = 
 	    lsst::afw::geom::Point2D(x, y);
 	lsst::afw::cameraGeom::Orientation orientation(0, 0.0, 0.0, t);
-	lsst::afw::cameraGeom::Ccd::Ptr ccd = lsst::afw::cameraGeom::Ccd::Ptr(new lsst::afw::cameraGeom::Ccd(k, 0.168));
+	PTR(lsst::afw::cameraGeom::Detector) ccd = PTR(lsst::afw::cameraGeom::Detector)(new lsst::afw::cameraGeom::Ccd(k, 0.168));
 	ccd->setCenter(lsst::afw::cameraGeom::FpPoint(center));
 	ccd->setOrientation(orientation);
 	ccdSet.push_back(ccd);
