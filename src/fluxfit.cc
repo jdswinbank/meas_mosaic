@@ -141,7 +141,7 @@ ndarray::Array<double, 1> FluxFitParams::eval(
 {
     int const num = x.getShape()[0];
     if (y.getShape()[0] != num) {
-        throw LSST_EXCEPT(pex::exceptions::LengthErrorException,
+        throw LSST_EXCEPT(pex::exceptions::LengthError,
                           str(boost::format("Size mismatch: %d vs %d") % x.getShape()[0] % y.getShape()[0]));
     }
     ndarray::Array<double, 1> out = ndarray::allocate(ndarray::makeVector(num));
