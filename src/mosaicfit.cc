@@ -309,8 +309,8 @@ Obs::Obs(int id_, double ra_, double dec_, int ichip_, int iexp_) :
 
 void Obs::setUV(PTR(lsst::afw::cameraGeom::Detector) &ccd, double x0, double y0) {
     lsst::afw::cameraGeom::Orientation ori = ccd->getOrientation();
-    double cosYaw = ori.getCosYaw();
-    double sinYaw = ori.getSinYaw();
+    double cosYaw = std::cos(ori.getYaw());
+    double sinYaw = std::sin(ori.getYaw());
 
     this->u0 = this->x * cosYaw - this->y * sinYaw;
     this->v0 = this->x * sinYaw + this->y * cosYaw;
@@ -2744,8 +2744,8 @@ lsst::meas::mosaic::convertCoeff(Coeff::Ptr& coeff, PTR(lsst::afw::cameraGeom::D
     int *yorder = p->yorder;
 
     lsst::afw::cameraGeom::Orientation ori = ccd->getOrientation();
-    double cosYaw = ori.getCosYaw();
-    double sinYaw = ori.getSinYaw();
+    double cosYaw = std::cos(ori.getYaw());
+    double sinYaw = std::sin(ori.getYaw());
 
     newC->A = coeff->A;
     newC->D = coeff->D;

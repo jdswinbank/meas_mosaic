@@ -1852,8 +1852,8 @@ lsst::meas::mosaic::convertFluxFitParams(FluxFitParams::Ptr& ffp, PTR(lsst::afw:
     int *yorder = ffp->yorder;
 
     lsst::afw::cameraGeom::Orientation ori = ccd->getOrientation();
-    double cosYaw = ori.getCosYaw();
-    double sinYaw = ori.getSinYaw();
+    double cosYaw = std::cos(ori.getYaw());
+    double sinYaw = std::sin(ori.getYaw());
 
     // u = cc * u' - ss * v'
     // v = ss * u' + cc * v'
