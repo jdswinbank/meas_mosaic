@@ -1877,7 +1877,14 @@ lsst::meas::mosaic::convertFluxFitParams(FluxFitParams::Ptr& ffp, PTR(lsst::afw:
 	}
     }
 
-    afw::geom::Extent2D off = ccd->getCenter().getPixels(ccd->getPixelSize()) - ccd->getCenterPixel();
+    // LinearTransform which scales extents given in mm to units of pixel size.
+    auto scaling = afw::geom::LinearTransform::makeScaling(1.0/ccd->getPixelSize().getX(), 1.0/ccd->getPixelSize().getY());
+
+    // Get the centre of the CCD in focal plane coordinates, scale to pixels,
+    // and subtract the centre of the CCD in pixel coordinates.
+    afw::geom::Extent2D off = scaling(ccd->getCenter(afw::cameraGeom::FOCAL_PLANE).getPoint())
+                              - ccd->getCenter(afw::cameraGeom::PIXELS).getPoint();
+
     newP->x0 =  (off[0] + x0) * cosYaw + (off[1] + y0) * sinYaw;
     newP->y0 = -(off[0] + x0) * sinYaw + (off[1] + y0) * cosYaw;
 
@@ -1912,8 +1919,8 @@ lsst::meas::mosaic::getFCorImg(FluxFitParams::Ptr& p,
 			      PTR(lsst::afw::cameraGeom::Detector)& ccd,
 			      Coeff::Ptr& coeff)
 {
-    int width  = ccd->getAllPixels(true).getWidth();
-    int height = ccd->getAllPixels(true).getHeight();
+    int width  = ccd->getBBox().getWidth();
+    int height = ccd->getBBox().getHeight();
 
     lsst::afw::image::Image<float>::Ptr img(new lsst::afw::image::Image<float>(width, height));
 
@@ -1931,12 +1938,21 @@ lsst::meas::mosaic::getFCorImg(FluxFitParams::Ptr& p,
 		interval = xend - x + 1;
 	    }
 
-        afw::geom::Point2D uv 
-            = ccd->getPositionFromPixel(afw::geom::Point2D(x, y)).getPixels(ccd->getPixelSize())
-            + afw::geom::Extent2D(coeff->x0, coeff->y0);
+        // LinearTransform which scales extents given in mm to units of pixel size.
+        auto scaling = afw::geom::LinearTransform::makeScaling(1.0/ccd->getPixelSize().getX(),
+                                                               1.0/ccd->getPixelSize().getY());
+
+        // Focal plane position corresponding to the pixel position (x, y), scaled by the pixel size, plus an extent
+        afw::geom::Point2D uv = scaling(ccd->transform(ccd->makeCameraPoint(afw::geom::Point2D(x, y),
+                                                                            afw::cameraGeom::PIXELS),
+                                        afw::cameraGeom::FOCAL_PLANE).getPoint())
+                                + afw::geom::Extent2D(coeff->x0, coeff->y0);
+
 	    double val0 = p->eval(uv.getX(), uv.getY());
-        uv = ccd->getPositionFromPixel(afw::geom::Point2D(xend, y)).getPixels(ccd->getPixelSize())
-            + afw::geom::Extent2D(coeff->x0, coeff->y0);
+        // Focal plane position corresponding to the pixel position (xend, y), scaled by the pixel size, plus an extent
+        uv = scaling(ccd->transform(ccd->makeCameraPoint(afw::geom::Point2D(xend, y),
+                     afw::cameraGeom::PIXELS), afw::cameraGeom::FOCAL_PLANE).getPoint())
+             + afw::geom::Extent2D(coeff->x0, coeff->y0);
 	    double val1 = p->eval(uv.getX(), uv.getY());
 
 	    for (int i = 0; i < interval; i++) {
@@ -2006,8 +2022,8 @@ lsst::afw::image::Image<float>::Ptr
 lsst::meas::mosaic::getFCorImg(FluxFitParams::Ptr& p,
 			      PTR(lsst::afw::cameraGeom::Detector)& ccd)
 {
-    int width  = ccd->getAllPixels(true).getWidth();
-    int height = ccd->getAllPixels(true).getHeight();
+    int width  = ccd->getBBox().getWidth();
+    int height = ccd->getBBox().getHeight();
 
     return getFCorImg(p, width, height);
 }
