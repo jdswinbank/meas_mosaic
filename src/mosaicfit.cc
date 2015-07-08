@@ -316,7 +316,12 @@ void Obs::setUV(PTR(lsst::afw::cameraGeom::Detector) &ccd, double x0, double y0)
     this->v0 = this->x * sinYaw + this->y * cosYaw;
 
     afw::geom::Point2D xy(this->x, this->y);
-    afw::geom::Point2D uv = ccd->getPositionFromPixel(xy).getPixels(ccd->getPixelSize());
+
+    // LinearTransform which scales extents given in mm to units of pixel size.
+    auto scaling = afw::geom::LinearTransform::makeScaling(1.0/ccd->getPixelSize().getX(),
+                                                           1.0/ccd->getPixelSize().getY());
+    afw::geom::Point2D uv = scaling(ccd->transform(ccd->makeCameraPoint(xy, afw::cameraGeom::PIXELS),
+                                                   afw::cameraGeom::FOCAL_PLANE).getPoint());
 
     this->u = uv.getX() + x0;
     this->v = uv.getY() + y0;
@@ -2429,24 +2434,87 @@ lsst::meas::mosaic::solveMosaic_CCD_shot(int order,
 	    if (allowRotation) {
 		int i = 0;
 		for (CcdSet::iterator it = ccdSet.begin(); it != ccdSet.end(); it++, i++) {
-		    afw::geom::Extent2D offset(coeff(2*ncoeff*nexp+3*i),
-					       coeff(2*ncoeff*nexp+3*i+1));
-		    offset *= it->second->getPixelSize();
-		    it->second->shiftCenter(afw::cameraGeom::FpExtent(offset));
-		    afw::cameraGeom::Orientation o = it->second->getOrientation();
-		    afw::cameraGeom::Orientation o2(o.getNQuarter(),
-						    o.getPitch(),
-						    o.getRoll(),
-						    o.getYaw() + coeff(2*ncoeff*nexp+3*i+2) * afw::geom::radians);
-		    it->second->setOrientation(o2);
+            // offset is calculated in pixel coordinates.
+            afw::geom::Extent2D offset(coeff(2*ncoeff*nexp+3*i), coeff(2*ncoeff*nexp+3*i+1));
+
+            // but must be transformed to mm to be applied.
+            auto pixelSize = it->second->getPixelSize();
+            auto scaling = afw::geom::LinearTransform::makeScaling(pixelSize.getX(), pixelSize.getY());
+            offset = scaling(offset);
+
+            afw::cameraGeom::Orientation newOrientation(
+                it->second->getOrientation().getFpPosition() + offset,
+                it->second->getOrientation().getReferencePoint(),
+                it->second->getOrientation().getYaw() + coeff(2*ncoeff*nexp + 3*i + 2) * afw::geom::radians,
+                it->second->getOrientation().getPitch(),
+                it->second->getOrientation().getRoll());
+
+            afw::cameraGeom::CameraTransformMap::Transforms newTr;
+
+            // Transform from pixels to pixels is the same on the new Detector as the old.
+            newTr[afw::cameraGeom::CameraSys(afw::cameraGeom::PIXELS, it->second->getName())] =
+                 it->second->getTransformMap()[afw::cameraGeom::CameraSys(afw::cameraGeom::PIXELS,
+                                                                          it->second->getName())];
+
+            // Transform from pixels to focal plane has to be recalculated.
+            newTr[afw::cameraGeom::FOCAL_PLANE] = boost::make_shared<afw::geom::AffineXYTransform const>
+                                                  (newOrientation.makePixelFpTransform(pixelSize));
+
+            // We should not require any other transformations within meas_mosaic.
+
+            // Replace the old Detector with a shifted one.
+            it->second = boost::make_shared<afw::cameraGeom::Detector>(
+                it->second->getName(),
+                it->second->getId(),
+                it->second->getType(),
+                it->second->getSerial(),
+                it->second->getBBox(),
+                it->second->getAmpInfoCatalog(),
+                newOrientation,
+                it->second->getPixelSize(),
+                newTr);
+
 		}
 	    } else {
 		int i = 0;
 		for (CcdSet::iterator it = ccdSet.begin(); it != ccdSet.end(); it++, i++) {
-		    afw::geom::Extent2D offset(coeff(2*ncoeff*nexp+2*i),
-					       coeff(2*ncoeff*nexp+2*i+1));
-		    offset *= it->second->getPixelSize();
-		    it->second->shiftCenter(afw::cameraGeom::FpExtent(offset));
+            // Logic as above, but with no change to Detector yaw.
+            afw::geom::Extent2D offset(coeff(2*ncoeff*nexp+2*i), coeff(2*ncoeff*nexp+2*i+1));
+            auto pixelSize = it->second->getPixelSize();
+            auto scaling = afw::geom::LinearTransform::makeScaling(pixelSize.getX(), pixelSize.getY());
+            offset = scaling(offset);
+
+            afw::cameraGeom::Orientation newOrientation(
+                it->second->getOrientation().getFpPosition() + offset,
+                it->second->getOrientation().getReferencePoint(),
+                it->second->getOrientation().getYaw(),
+                it->second->getOrientation().getPitch(),
+                it->second->getOrientation().getRoll());
+
+            afw::cameraGeom::CameraTransformMap::Transforms newTr;
+
+            // Transform from pixels to pixels is the same on the new Detector as the old.
+            newTr[afw::cameraGeom::CameraSys(afw::cameraGeom::PIXELS, it->second->getName())] =
+                 it->second->getTransformMap()[afw::cameraGeom::CameraSys(afw::cameraGeom::PIXELS,
+                                                                          it->second->getName())];
+
+            // Transform from pixels to focal plane has to be recalculated.
+            newTr[afw::cameraGeom::FOCAL_PLANE] = boost::make_shared<afw::geom::AffineXYTransform const>
+                                                  (newOrientation.makePixelFpTransform(pixelSize));
+
+            // We should not require any other transformations within meas_mosaic.
+
+            // Replace the old Detector with a shifted one.
+            it->second = boost::make_shared<afw::cameraGeom::Detector>(
+                it->second->getName(),
+                it->second->getId(),
+                it->second->getType(),
+                it->second->getSerial(),
+                it->second->getBBox(),
+                it->second->getAmpInfoCatalog(),
+                newOrientation,
+                it->second->getPixelSize(),
+                newTr);
 		}
 	    }
 	}
@@ -2591,24 +2659,75 @@ lsst::meas::mosaic::solveMosaic_CCD(int order,
 	    if (allowRotation) {
 		int i = 0;
 		for (CcdSet::iterator it = ccdSet.begin(); it != ccdSet.end(); it++, i++) {
-		    afw::geom::Extent2D offset(coeff(2*ncoeff*nexp+3*i),
-					       coeff(2*ncoeff*nexp+3*i+1));
-		    offset *= it->second->getPixelSize();
-		    it->second->shiftCenter(afw::cameraGeom::FpExtent(offset));
-		    afw::cameraGeom::Orientation o = it->second->getOrientation();
-		    afw::cameraGeom::Orientation o2(o.getNQuarter(),
-						    o.getPitch(),
-						    o.getRoll(),
-						    o.getYaw() + coeff(2*ncoeff*nexp+3*i+2) * afw::geom::radians);
-		    it->second->setOrientation(o2);
+            // offset is calculated in pixel coordinates.
+            afw::geom::Extent2D offset(coeff(2*ncoeff*nexp+3*i), coeff(2*ncoeff*nexp+3*i+1));
+
+            // but must be transformed to mm to be applied.
+            auto pixelSize = it->second->getPixelSize();
+            auto scaling = afw::geom::LinearTransform::makeScaling(pixelSize.getX(), pixelSize.getY());
+            offset = scaling(offset);
+
+            afw::cameraGeom::Orientation newOrientation(
+                it->second->getOrientation().getFpPosition() + offset,
+                it->second->getOrientation().getReferencePoint(),
+                it->second->getOrientation().getYaw() + coeff(2*ncoeff*nexp + 3*i + 2) * afw::geom::radians,
+                it->second->getOrientation().getPitch(),
+                it->second->getOrientation().getRoll());
+
+            afw::cameraGeom::CameraTransformMap::Transforms newTr;
+
+            // Transform from pixels to focal plane has to be recalculated.
+            newTr[afw::cameraGeom::FOCAL_PLANE] = boost::make_shared<afw::geom::AffineXYTransform const>
+                                                  (newOrientation.makePixelFpTransform(pixelSize));
+
+            // We should not require any other transformations within meas_mosaic.
+
+            // Replace the old Detector with a shifted one.
+            it->second = boost::make_shared<afw::cameraGeom::Detector>(
+                it->second->getName(),
+                it->second->getId(),
+                it->second->getType(),
+                it->second->getSerial(),
+                it->second->getBBox(),
+                it->second->getAmpInfoCatalog(),
+                newOrientation,
+                it->second->getPixelSize(),
+                newTr);
 		}
 	    } else {
 		int i = 0;
 		for (CcdSet::iterator it = ccdSet.begin(); it != ccdSet.end(); it++, i++) {
-		    afw::geom::Extent2D offset(coeff(2*ncoeff*nexp+2*i),
-					       coeff(2*ncoeff*nexp+2*i+1));
-		    offset *= it->second->getPixelSize();
-		    it->second->shiftCenter(afw::cameraGeom::FpExtent(offset));
+            afw::geom::Extent2D offset(coeff(2*ncoeff*nexp+2*i), coeff(2*ncoeff*nexp+2*i+1));
+            auto pixelSize = it->second->getPixelSize();
+            auto scaling = afw::geom::LinearTransform::makeScaling(pixelSize.getX(), pixelSize.getY());
+            offset = scaling(offset);
+
+            afw::cameraGeom::Orientation newOrientation(
+                it->second->getOrientation().getFpPosition() + offset,
+                it->second->getOrientation().getReferencePoint(),
+                it->second->getOrientation().getYaw(),
+                it->second->getOrientation().getPitch(),
+                it->second->getOrientation().getRoll());
+
+            afw::cameraGeom::CameraTransformMap::Transforms newTr;
+
+            // Transform from pixels to focal plane has to be recalculated.
+            newTr[afw::cameraGeom::FOCAL_PLANE] = boost::make_shared<afw::geom::AffineXYTransform const>
+                                                  (newOrientation.makePixelFpTransform(pixelSize));
+
+            // We should not require any other transformations within meas_mosaic.
+
+            // Replace the old Detector with a shifted one.
+            it->second = boost::make_shared<afw::cameraGeom::Detector>(
+                it->second->getName(),
+                it->second->getId(),
+                it->second->getType(),
+                it->second->getSerial(),
+                it->second->getBBox(),
+                it->second->getAmpInfoCatalog(),
+                newOrientation,
+                it->second->getPixelSize(),
+                newTr);
 		}
 	    }
 	}
@@ -2771,7 +2890,13 @@ lsst::meas::mosaic::convertCoeff(Coeff::Ptr& coeff, PTR(lsst::afw::cameraGeom::D
 	}
     }
 
-    afw::geom::Extent2D off = ccd->getCenter().getPixels(ccd->getPixelSize()) - ccd->getCenterPixel();
+    // LinearTransform which scales extents given in mm to units of pixel size.
+    auto scaling = afw::geom::LinearTransform::makeScaling(1.0/ccd->getPixelSize().getX(), 1.0/ccd->getPixelSize().getY());
+
+    // Get the centre of the CCD in focal plane coordinates, scale to pixels,
+    // and subtract the centre of the CCD in pixel coordinates.
+    afw::geom::Extent2D off = scaling(ccd->getCenter(afw::cameraGeom::FOCAL_PLANE).getPoint())
+                              - ccd->getCenter(afw::cameraGeom::PIXELS).getPoint();
     newC->x0 =  (off[0] + coeff->x0) * cosYaw + (off[1] + coeff->y0) * sinYaw;
     newC->y0 = -(off[0] + coeff->x0) * sinYaw + (off[1] + coeff->y0) * cosYaw;
 
@@ -2985,8 +3110,8 @@ lsst::meas::mosaic::getJImg(Coeff::Ptr& coeff,
     double scale = coeff->pixelScale();
     double deg2pix = 1. / scale;
 
-    int width  = ccd->getAllPixels(true).getWidth();
-    int height = ccd->getAllPixels(true).getHeight();
+    int width  = ccd->getBBox().getWidth();
+    int height = ccd->getBBox().getHeight();
 
     lsst::afw::image::Image<float>::Ptr img(new lsst::afw::image::Image<float>(width, height));
 
@@ -3004,13 +3129,21 @@ lsst::meas::mosaic::getJImg(Coeff::Ptr& coeff,
 		interval = xend - x + 1;
 	    }
 
-        afw::geom::Point2D uv
-            = ccd->getPositionFromPixel(afw::geom::Point2D(x, y)).getPixels(ccd->getPixelSize())
-            + afw::geom::Extent2D(coeff->x0, coeff->y0);
+        // LinearTransform which scales extents given in mm to units of pixel size.
+        auto scaling = afw::geom::LinearTransform::makeScaling(1.0/ccd->getPixelSize().getX(),
+                                                               1.0/ccd->getPixelSize().getY());
+
+        // Focal plane position corresponding to the pixel position (x, y), scaled by the pixel size, plus an extent.
+        afw::geom::Point2D uv = scaling(ccd->transform(ccd->makeCameraPoint(afw::geom::Point2D(x, y),
+                                                                            afw::cameraGeom::PIXELS),
+                                        afw::cameraGeom::FOCAL_PLANE).getPoint())
+                                + afw::geom::Extent2D(coeff->x0, coeff->y0);
 	    double val0 = coeff->detJ(uv.getX(), uv.getY()) * deg2pix * deg2pix;
 
-        uv = ccd->getPositionFromPixel(afw::geom::Point2D(xend, y)).getPixels(ccd->getPixelSize())
-            + afw::geom::Extent2D(coeff->x0, coeff->y0);
+        // Focal plane position corresponding to the pixel position (xend, y), scaled by the pixel size, plus an extent.
+        uv = scaling(ccd->transform(ccd->makeCameraPoint(afw::geom::Point2D(xend, y),
+                     afw::cameraGeom::PIXELS), afw::cameraGeom::FOCAL_PLANE).getPoint())
+             + afw::geom::Extent2D(coeff->x0, coeff->y0);
 	    double val1 = coeff->detJ(uv.getX(), uv.getY()) * deg2pix * deg2pix;
 
 	    for (int i = 0; i < interval; i++) {
@@ -3085,8 +3218,8 @@ lsst::afw::image::Image<float>::Ptr
 lsst::meas::mosaic::getJImg(lsst::afw::image::Wcs::Ptr& wcs,
 			   PTR(lsst::afw::cameraGeom::Detector)& ccd)
 {
-    int width  = ccd->getAllPixels(true).getWidth();
-    int height = ccd->getAllPixels(true).getHeight();
+    int width  = ccd->getBBox().getWidth();
+    int height = ccd->getBBox().getHeight();
 
     return getJImg(wcs, width, height);
 }
