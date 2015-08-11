@@ -1735,7 +1735,7 @@ void fluxFitRelative(ObsVec& matchVec,
 	printf("\n");
     }
 
-    for (typename std::map<int, float>::iterator it = fchip.begin(); it != fchip.end(); ++it) {
+    for (std::map<int, float>::iterator it = fchip.begin(); it != fchip.end(); ++it) {
         std::cout << "CCD " << it->first << ": " << it->second << std::endl;
     }
 }
@@ -1816,7 +1816,7 @@ void fluxFitAbsolute(ObsVec& matchVec,
 	printf("\n");
     }
 
-    for (typename std::map<int, float>::iterator it = fchip.begin(); it != fchip.end(); ++it) {
+    for (std::map<int, float>::iterator it = fchip.begin(); it != fchip.end(); ++it) {
         std::cout << "CCD " << it->first << ": " << it->second << std::endl;
     }
 }
