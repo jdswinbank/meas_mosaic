@@ -1,7 +1,7 @@
 from lsst.pipe.base import CmdLineTask, ArgumentParser
 from lsst.pex.config import Config, Field
 from .updateExposure import applyMosaicResultsExposure, applyMosaicResultsCatalog, applyCalib
-from lsst.pipe.tasks.dataIds import PerTractCcdDataIdContainer
+from lsst.meas.base.forcedPhotCcd import PerTractCcdDataIdContainer
 
 class CalibrateCatalogConfig(Config):
     doApplyCalib = Field(dtype=bool, default=True, doc="Calibrate fluxes to magnitudes?")

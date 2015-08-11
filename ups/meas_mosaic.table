@@ -3,6 +3,7 @@ setupRequired(numpy)
 setupRequired(pex_config)
 setupRequired(pipe_tasks)
 setupRequired(meas_astrom)
+setupRequired(meas_base)
 setupRequired(minuit2)
 
 setupOptional(mkl)
