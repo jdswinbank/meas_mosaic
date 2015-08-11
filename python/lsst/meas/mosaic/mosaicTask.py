@@ -24,7 +24,7 @@ import lsst.meas.mosaic.mosaicLib       as measMosaic
 import lsst.meas.astrom.astrom          as measAstrom
 from lsst.meas.photocal.colorterms import ColortermLibraryConfig
 
-from lsst.pipe.tasks.dataIds import PerTractCcdDataIdContainer
+from lsst.meas.base.forcedPhotCcd import PerTractCcdDataIdContainer
 
 class MosaicRunner(pipeBase.TaskRunner):
     """Subclass of TaskRunner for MosaicTask
