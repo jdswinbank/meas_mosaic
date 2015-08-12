@@ -545,7 +545,7 @@ class CheckMosaicTask(MosaicTask):
         self.plotPosAsMag(m0_s, dx_s, dy_s)
         self.writeCatalog(allSource, wcsDic, calibDic, ffpDic)
 
-    def run(self, camera, butler, dataRefList, debug):
+    def run(self, camera, butler, tract, dataRefList, debug):
 
         colorterms = ColortermLibrary()
         name = os.path.join(os.environ["OBS_SUBARU_DIR"], "config", camera, "colorterms.py")
