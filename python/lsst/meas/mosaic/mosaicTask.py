@@ -20,9 +20,10 @@ import lsst.afw.coord                   as afwCoord
 import lsst.afw.math                    as afwMath
 import lsst.pex.config                  as pexConfig
 import lsst.pipe.base                   as pipeBase
-import lsst.meas.mosaic.mosaicLib       as measMosaic
+import lsst.meas.algorithms             as measAlg
 import lsst.meas.astrom                 as measAstrom
-from lsst.meas.photocal.colorterms import ColortermLibraryConfig
+import lsst.meas.mosaic.mosaicLib       as measMosaic
+from lsst.pipe.tasks.colorterms import ColortermLibrary
 
 from lsst.meas.base.forcedPhotCcd import PerTractCcdDataIdContainer
 
@@ -137,7 +138,7 @@ class MosaicConfig(pexConfig.Config):
     doSolveWcs = pexConfig.Field(dtype=bool, default=True, doc="Solve distortion and wcs?")
     doSolveFlux = pexConfig.Field(dtype=bool, default=True, doc="Solve flux correction?")
     commonFluxCorr = pexConfig.Field(dtype=bool, default=True, doc="Is flux correction common between exposures?")
-    colorterms = pexConfig.ConfigField(dtype=ColortermLibraryConfig, doc="Color term library")
+    colorterms = pexConfig.ConfigField(dtype=ColortermLibrary, doc="Color term library")
     includeSaturated = pexConfig.Field(
         doc="If True, saturated objects will also be used for mosaicking.",
         dtype=bool,
@@ -287,7 +288,6 @@ class SourceReader(object):
 class Worker(object):
     """ Worker object for multiprocessing
     """
-
     def __init__(self, verbose=False):
         self.verbose = verbose
 
@@ -372,7 +372,123 @@ class MosaicTask(pipeBase.CmdLineTask):
         for ichip in ccdSet.keys():
             if num[ichip] == 0:
                 ccdSet.erase(ichip)
+<<<<<<< 2200257669584455788ff4f0e1f43c3664c8b82f
     def readCatalog(self, dataRefList, ct=None, numCoresForReadSource=1, readTimeout=9999, verbose=False):
+=======
+            
+    def selectStars(self, sources, includeSaturated=False):
+        if len(sources) == 0:
+            return []
+        if isinstance(sources, afwTable.SourceCatalog):
+            extended = sources.columns["classification.extendedness"]
+            saturated = sources.columns["flags.pixel.saturated.any"]
+            try:
+                nchild = sources.columns["deblend.nchild"]
+            except:
+                nchild = numpy.zeros(len(sources))
+            indices = numpy.where(numpy.logical_and(numpy.logical_and(extended < 0.5, saturated == False), nchild == 0))[0]
+            return [sources[int(i)] for i in indices]
+
+        psfKey = None                       # Table key for classification.psfstar
+        if isinstance(sources, afwTable.ReferenceMatchVector) or isinstance(sources[0], afwTable.ReferenceMatch):
+            sourceList = [s.second for s in sources]
+            psfKey = sourceList[0].schema.find("calib.psf.used").getKey()
+        else:
+            sourceList = sources
+
+        schema = sourceList[0].schema
+        extKey = schema.find("classification.extendedness").getKey()
+        satKey = schema.find("flags.pixel.saturated.any").getKey()
+
+        stars = []
+        for includeSource, checkSource in zip(sources, sourceList):
+            star = (psfKey is not None and checkSource.get(psfKey)) or checkSource.get(extKey) < 0.5
+            saturated = checkSource.get(satKey)
+            if star and (includeSaturated or not saturated):
+                stars.append(includeSource)
+        return stars
+
+    def getAllForCcd(self, dataRef, astrom, ct=None, verbose=False):
+        try:
+            if not dataRef.datasetExists('src'):
+                raise RuntimeError("no data for src %s" % (dataRef.dataId))
+            if not dataRef.datasetExists('calexp_md'):
+                raise RuntimeError("no data for calexp_md %s" % (dataRef.dataId))
+            md = dataRef.get('calexp_md', immediate=True)
+            wcs = afwImage.makeWcs(md)
+            filterName = afwImage.Filter(md).getName()
+
+            sources = dataRef.get('src', immediate=True, flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
+            if False:
+                matches = measAstrom.readMatches(dataRef.getButler(), dataRef.dataId, config=self.config.astrom)
+            else:
+                if False: #dataRef.datasetExists('icMatchFull'):
+                    if verbose:
+                        self.log.info("Reading matches from icMatchFull files for %s" % dataRef.dataId)
+                                  
+                    matchFull = dataRef.get('icMatchFull', immediate=True)
+                    matches = measMosaic.matchesFromCatalog(matchFull)
+                    #for slot in ("PsfFlux", "ModelFlux", "ApFlux", "InstFlux", "Centroid", "Shape"):
+                    #    getattr(matches[0].second.getTable(), "define" + slot)(getattr(icSrces, "get" + slot + "Definition")())
+                    table = matches[0].second.getTable()
+                    table.definePsfFlux('flux.psf')
+                    table.defineModelFlux('flux.gaussian')
+                    table.defineApFlux('flux.sinc')
+                    table.defineInstFlux('flux.gaussian')
+                    table.defineCentroid('centroid.sdss')
+                    table.defineShape('shape.sdss')
+                else:
+                    if verbose:
+                        self.log.info("Reading matches from icSrc files for %s" % dataRef.dataId)
+                    icSrces = dataRef.get('icSrc', immediate=True)
+                    packedMatches = dataRef.get('icMatch', immediate=True)
+                    matches = astrom.joinMatchListWithCatalog(packedMatches, icSrces)
+
+                matches = [m for m in matches if m.first != None]
+
+                if matches:
+                    refSchema = matches[0].first.schema
+                    if ct:
+                        # Add a "flux" field to the match records which contains the
+                        # colorterm-corrected reference flux. The field name is hard-coded in
+                        # lsst::meas::mosaic::Source.
+                        mapper = afwTable.SchemaMapper(refSchema)
+                        for key, field in refSchema:
+                            mapper.addMapping(key)
+                        key_f = mapper.editOutputSchema().addField("flux", type=float, doc="Reference flux")
+                        table = afwTable.SimpleTable.make(mapper.getOutputSchema())
+                        table.preallocate(len(matches))
+                        for match in matches:
+                            newMatch = table.makeRecord()
+                            newMatch.assign(match.first, mapper)
+                            match.first = newMatch
+
+                        key_p = refSchema.find(refSchema.join(ct.primary, "flux")).key
+                        key_s = refSchema.find(refSchema.join(ct.secondary, "flux")).key
+                        refFlux1 = numpy.array([m.first.get(key_p) for m in matches])
+                        refFlux2 = numpy.array([m.first.get(key_s) for m in matches])
+                        refMag1 = -2.5*numpy.log10(refFlux1)
+                        refMag2 = -2.5*numpy.log10(refFlux2)
+                        refMag = ct.transformMags(refMag1, refMag2)
+                        refFlux = numpy.power(10.0, -0.4*refMag)
+                        matches = [setCatFlux(m, f, key_f) for m, f in zip(matches, refFlux) if f == f]
+                    else:
+                        # No colorterm; we can get away with aliasing the reference flux.
+                        refFluxField = measAlg.getRefFluxField(refSchema, filterName)
+                        refSchema.getAliasMap().set("flux", refFluxField)
+
+            selSources = self.selectStars(sources)
+            selMatches = self.selectStars(matches)
+            #if len(selMatches) < 10:
+            #    selMatches = self.selectStars(matches, True)
+        except Exception, e:
+            self.log.warn("Failed to read %s: %s" % (dataRef.dataId, e))
+            return None, None, None
+    
+        return selSources, selMatches, wcs
+
+    def readCatalog(self, dataRefList, ct=None, verbose=False):
+>>>>>>> Adapt to new colorterm system.
         self.log.info("Reading catalogs ...")
         self.log.info("Use %d cores for reading source catalog" % (numCoresForReadSource))
 
@@ -1521,7 +1637,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             return None
 
         if self.config.doColorTerms:
-            ct = self.config.colorterms.selectColorTerm(filters[0])
+            ct = self.config.colorterms.getColorterm(filters[0])
         else:
             ct = None
 
