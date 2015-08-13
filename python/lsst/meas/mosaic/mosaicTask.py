@@ -223,10 +223,10 @@ class MosaicTask(pipeBase.CmdLineTask):
         if len(sources) == 0:
             return []
         if isinstance(sources, afwTable.SourceCatalog):
-            extended = sources.columns["classification.extendedness"]
-            saturated = sources.columns["flags.pixel.saturated.any"]
+            extended = sources.getColumnView()["base_ClassificationExtendedness_value"]
+            saturated = sources.getColumnView()["base_PixelFlags_flag_saturated"]
             try:
-                nchild = sources.columns["deblend.nchild"]
+                nchild = sources.getColumnView()["deblend_nChild"]
             except:
                 nchild = numpy.zeros(len(sources))
             indices = numpy.where(numpy.logical_and(numpy.logical_and(extended < 0.5, saturated == False), nchild == 0))[0]
@@ -235,13 +235,13 @@ class MosaicTask(pipeBase.CmdLineTask):
         psfKey = None                       # Table key for classification.psfstar
         if isinstance(sources, afwTable.ReferenceMatchVector) or isinstance(sources[0], afwTable.ReferenceMatch):
             sourceList = [s.second for s in sources]
-            psfKey = sourceList[0].schema.find("calib.psf.used").getKey()
+            psfKey = sourceList[0].schema.find("calib_psfUsed").getKey()
         else:
             sourceList = sources
 
         schema = sourceList[0].schema
-        extKey = schema.find("classification.extendedness").getKey()
-        satKey = schema.find("flags.pixel.saturated.any").getKey()
+        extKey = schema.find("base_ClassificationExtendedness_value").getKey()
+        satKey = schema.find("base_PixelFlags_flag_saturated").getKey()
 
         stars = []
         for includeSource, checkSource in zip(sources, sourceList):
