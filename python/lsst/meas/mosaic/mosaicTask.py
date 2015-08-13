@@ -12,7 +12,6 @@ import multiprocessing
 from lsst.pex.logging import getDefaultLog
 
 import lsst.afw.cameraGeom              as cameraGeom
-import lsst.afw.cameraGeom.utils        as cameraGeomUtils
 import lsst.afw.geom                    as afwGeom
 import lsst.afw.image                   as afwImage
 import lsst.afw.table                   as afwTable
@@ -327,7 +326,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         ccds = measMosaic.CcdSet()
         for dataRef in dataRefList:
             if not dataRef.dataId['ccd'] in ccds.keys():
-                ccd = cameraGeomUtils.findCcd(dataRef.getButler().mapper.camera, cameraGeom.Id(int(dataRef.dataId['ccd'])))
+                ccd = dataRef.getButler().mapper.camera[int(dataRef.dataId['ccd'])]
                 ccds[dataRef.dataId['ccd']] = ccd
         
         return ccds
@@ -354,7 +353,11 @@ class MosaicTask(pipeBase.CmdLineTask):
                     dataRef.datasetExists('icMatch')):
                     wcs = self.getWcsForCcd(dataRef)
                     ccd = ccdSet[dataRef.dataId['ccd']]
-                    offset = ccd.getCenter().getPixels(ccd.getPixelSize())
+
+                    pSize = ccd.getPixelSize()
+                    mmToPixels = afwGeom.LinearTransform.makeScaling(1.0/pSize.getX(), 1.0/pSize.getY())
+                    offset = mmToPixels(ccd.getCenter(cameraGeom.FOCAL_PLANE).getPoint())
+
                     wcs.shiftReferencePixel(offset[0], offset[1])
                     wcsDic[dataRef.dataId['visit']] = wcs
 
@@ -517,13 +520,15 @@ class MosaicTask(pipeBase.CmdLineTask):
 
     def plotCcd(self, coeffx0=0, coeffy0=0):
         for ccd in self.ccdSet.values():
-            w = ccd.getAllPixels(True).getWidth()
-            h = ccd.getAllPixels(True).getHeight()
+            w = ccd.getBBox().getWidth()
+            h = ccd.getBBox().getHeight()
             us = list()
             vs = list()
             for x, y in zip([0, w, w, 0, 0], [0, 0, h, h, 0]):
                 xy = afwGeom.Point2D(x, y)
-                u, v = ccd.getPositionFromPixel(xy).getPixels(ccd.getPixelSize())
+                pSize = ccd.getPixelSize()
+                mmToPixels = afwGeom.LinearTransform.makeScaling(1.0/pSize.getX(), 1.0/pSize.getY())
+                u, v = mmToPixels(ccd.transform(ccd.makeCameraPoint(xy, cameraGeom.PIXELS), cameraGeom.FOCAL_PLANE).getPoint())
                 us.append(u)
                 vs.append(v)
             plt.plot(us, vs, 'k-')
@@ -971,12 +976,17 @@ class MosaicTask(pipeBase.CmdLineTask):
         _r = []
         _dm = []
         for ccd in self.ccdSet.values():
-            w = ccd.getAllPixels(True).getWidth()
-            h = ccd.getAllPixels(True).getHeight()
-            _x0 = ccd.getCenter().getPixels(ccd.getPixelSize())[0] + 0.5 * w
-            _y0 = ccd.getCenter().getPixels(ccd.getPixelSize())[1] + 0.5 * h
+            w = ccd.getBBox().getWidth()
+            h = ccd.getBBox().getHeight()
+
+            pSize = ccd.getPixelSize()
+            mmToPixels = afwGeom.LinearTransform.makeScaling(1.0/pSize.getX(), 1.0/pSize.getY())
+
+            _x0 = mmToPixels(ccd.getCenter(cameraGeom.FOCAL_PLANE).getPoint())[0] + 0.5 * w
+            _y0 = mmToPixels(ccd.getCenter(cameraGeom.FOCAL_PLANE).getPoint())[1] + 0.5 * h
+
             _r.append(math.sqrt(_x0*_x0 + _y0*_y0))
-            _dm.append(-2.5 * math.log10(self.fchip[ccd.getId().getSerial()]))
+            _dm.append(-2.5 * math.log10(self.fchip[int(ccd.getSerial())]))
 
         r = numpy.array(_r)
         dm = numpy.array(_dm)
@@ -1067,7 +1077,9 @@ class MosaicTask(pipeBase.CmdLineTask):
         f = open(os.path.join(self.outputDir, "ccd.dat"), "wt")
         for ichip in self.ccdSet.keys():
             ccd = self.ccdSet[ichip]
-            center = ccd.getCenter().getPixels(ccd.getPixelSize())
+            pSize = ccd.getPixelSize()
+            mmToPixels = afwGeom.LinearTransform.makeScaling(1.0/pSize.getX(), 1.0/pSize.getY())
+            center = mmToPixels(ccd.getCenter(cameraGeom.FOCAL_PLANE).getPoint())
             orient = ccd.getOrientation()
             f.write("%3ld %10.3f %10.3f %10.7f\n" % (ichip, center[0], center[1], orient.getYaw()))
         f.close()
