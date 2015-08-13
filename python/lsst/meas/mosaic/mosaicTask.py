@@ -24,6 +24,9 @@ from lsst.pipe.tasks.colorterms import ColortermLibrary
 
 from lsst.meas.base.forcedPhotCcd import PerTractCcdDataIdContainer
 
+# Use LaTeX to render figure captions? Requires dvipng (not available on lsst-dev).
+USETEX=False
+
 class MosaicRunner(pipeBase.TaskRunner):
     """Subclass of TaskRunner for MosaicTask
 
@@ -595,7 +598,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         dys = numpy.array(_dys)
 
         plt.clf()
-        plt.rc('text', usetex=True)
+        plt.rc('text', usetex=USETEX)
 
         q = plt.quiver(xm, ym, dxm, dym, units='inches', angles='xy', scale=1, color='green')
         if len(ym) != 0 and ym.max() > 5000:
@@ -685,7 +688,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         eta_std_s, eta_mean_s, eta_n_s = self.clippedStd(d_eta_s, 2)
 
         plt.clf()
-        plt.rc('text', usetex=True)
+        plt.rc('text', usetex=USETEX)
 
         plt.subplot2grid((5,6),(1,0), colspan=4, rowspan=4)
         plt.plot(d_xi_bad, d_eta_bad, 'k,', markeredgewidth=0)
@@ -825,7 +828,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         mag_cat_std_m, mag_cat_mean_m, mag_cat_n_m  = self.clippedStd(d_mag_cat_m, 3)
 
         plt.clf()
-        plt.rc('text', usetex=True)
+        plt.rc('text', usetex=USETEX)
 
         plt.subplot2grid((5,6),(1,0), colspan=4, rowspan=4)
         plt.plot(mag0_bad, d_mag_bad, 'k,', markeredgewidth=0)
@@ -889,7 +892,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         d_eta = numpy.array(_y)
 
         plt.clf()
-        plt.rc('text', usetex=True)
+        plt.rc('text', usetex=USETEX)
 
         plt.subplot(2, 2, 1)
         plt.plot(xi, d_xi, ',', markeredgewidth=0)
@@ -956,7 +959,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         dm = numpy.array(_dm)
 
         plt.clf()
-        plt.rc('text', usetex=True)
+        plt.rc('text', usetex=USETEX)
 
         ax = plt.subplot(2, 2, 1)
         plt.hist(d_mag, bins=100, normed=True, histtype='step')
@@ -1015,7 +1018,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         s2 = [math.fabs(d_mag[i])*20 for i in range(len(d_mag)) if d_mag[i] < 0]
 
         plt.clf()
-        plt.rc('text', usetex=True)
+        plt.rc('text', usetex=USETEX)
 
         plt.scatter(u1, v1, s1, color='blue')
         plt.scatter(u2, v2, s2, color='red')
