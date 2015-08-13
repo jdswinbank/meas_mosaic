@@ -13,7 +13,7 @@ from lsst.meas.mosaic.mosaicTask import MosaicTask
 from lsst.meas.mosaic.mosaicTask import MosaicConfig
 from lsst.meas.mosaic.mosaicTask import MosaicRunner
 import lsst.meas.mosaic.mosaicLib       as measMosaic
-import lsst.meas.astrom.astrom          as measAstrom
+import lsst.meas.astrom                 as measAstrom
 import lsst.afw.image                   as afwImage
 import lsst.afw.geom                    as afwGeom
 import lsst.afw.table                   as afwTable
@@ -424,7 +424,7 @@ class CheckMosaicTask(MosaicTask):
 
         sourceSet = measMosaic.SourceGroup()
         matchList = measMosaic.SourceMatchGroup()
-        astrom = measAstrom.Astrometry(self.config.astrom)
+        astrom = measAstrom.ANetBasicAstrometryTask(self.config.astrom)
         ssVisit = dict()
         mlVisit = dict()
         dataRefListUsed = list()
@@ -467,13 +467,17 @@ class CheckMosaicTask(MosaicTask):
                               flags=afwTable.SOURCE_IO_NO_FOOTPRINTS,
                               immediate=True)
                 packedMatches = dataRef.get('icMatch')
-                matches = astrom.joinMatchListWithCatalog(packedMatches, icSrces, True)
+                matches = astrom.joinMatchListWithCatalog(packedMatches, icSrces)
+                matches[0].first.schema.getAliasMap().set("flux", matches[0].first.schema.join(
+                                                          filterName, "flux"))
+                matches[0].first.schema.getAliasMap().set("fluxSigma", matches[0].first.schema.join(
+                                                          filterName, "fluxSigma"))
 
                 matches = [m for m in matches if m.first != None]
                 if ct != None and len(matches) != 0:
                     refSchema = matches[0].first.schema
-                    key_p = refSchema.find(ct.primary).key
-                    key_s = refSchema.find(ct.secondary).key
+                    key_p = refSchema.find(refSchema.join(ct.primary, "flux")).key
+                    key_s = refSchema.find(refSchema.join(ct.secondary, "flux")).key
                     key_f = refSchema.find("flux").key
                     for m in matches:
                         refFlux1 = m.first.get(key_p)

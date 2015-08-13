@@ -19,7 +19,7 @@ import lsst.afw.math                    as afwMath
 import lsst.pex.config                  as pexConfig
 import lsst.pipe.base                   as pipeBase
 import lsst.meas.mosaic.mosaicLib       as measMosaic
-import lsst.meas.astrom.astrom          as measAstrom
+import lsst.meas.astrom                 as measAstrom
 from lsst.meas.photocal.colorterms import ColortermLibraryConfig
 
 from lsst.meas.base.forcedPhotCcd import PerTractCcdDataIdContainer
@@ -137,7 +137,7 @@ class MosaicConfig(pexConfig.Config):
         doc="If True, unmatched sources outside of tract will not be used as constraints",
         dtype=bool,
         default=True)
-    astrom = pexConfig.ConfigField(dtype=measAstrom.MeasAstromConfig, doc="Configuration for readMatches")
+    astrom = pexConfig.ConfigField(dtype=measAstrom.ANetBasicAstrometryConfig, doc="Configuration for readMatches")
     doColorTerms = pexConfig.Field(dtype=bool, default=True, doc="Apply color terms as part of solution?")
     doSolveWcs = pexConfig.Field(dtype=bool, default=True, doc="Solve distortion and wcs?")
     doSolveFlux = pexConfig.Field(dtype=bool, default=True, doc="Solve flux correction?")
@@ -285,10 +285,15 @@ class MosaicTask(pipeBase.CmdLineTask):
                     matches = astrom.joinMatchListWithCatalog(packedMatches, icSrces)
 
                 matches = [m for m in matches if m.first != None]
+                matches[0].first.schema.getAliasMap().set("flux", matches[0].first.schema.join(
+                                                          filterName, "flux"))
+                matches[0].first.schema.getAliasMap().set("fluxSigma", matches[0].first.schema.join(
+                                                          filterName, "fluxSigma"))
+
                 if ct != None and len(matches) != 0:
                     refSchema = matches[0].first.schema
-                    key_p = refSchema.find(ct.primary).key
-                    key_s = refSchema.find(ct.secondary).key
+                    key_p = refSchema.find(refSchema.join(ct.primary, "flux")).key
+                    key_s = refSchema.find(refSchema.join(ct.secondary, "flux")).key
                     key_f = refSchema.find("flux").key
                     refFlux1 = numpy.array([m.first.get(key_p) for m in matches])
                     refFlux2 = numpy.array([m.first.get(key_s) for m in matches])
@@ -313,7 +318,7 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         sourceSet = measMosaic.SourceGroup()
         matchList = measMosaic.SourceMatchGroup()
-        astrom = measAstrom.Astrometry(self.config.astrom)
+        astrom = measAstrom.ANetBasicAstrometryTask(self.config.astrom)
 
         ssVisit = dict()
         mlVisit = dict()
