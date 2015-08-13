@@ -21,7 +21,7 @@ import lsst.afw.math                    as afwMath
 import lsst.pex.config                  as pexConfig
 import lsst.pipe.base                   as pipeBase
 import lsst.meas.mosaic.mosaicLib       as measMosaic
-import lsst.meas.astrom.astrom          as measAstrom
+import lsst.meas.astrom                 as measAstrom
 from lsst.meas.photocal.colorterms import ColortermLibraryConfig
 
 from lsst.meas.base.forcedPhotCcd import PerTractCcdDataIdContainer
@@ -132,7 +132,7 @@ class MosaicConfig(pexConfig.Config):
         doc="If True, unmatched sources outside of tract will not be used as constraints",
         dtype=bool,
         default=True)
-    astrom = pexConfig.ConfigField(dtype=measAstrom.MeasAstromConfig, doc="Configuration for readMatches")
+    astrom = pexConfig.ConfigField(dtype=measAstrom.ANetBasicAstrometryConfig, doc="Configuration for readMatches")
     doColorTerms = pexConfig.Field(dtype=bool, default=True, doc="Apply color terms as part of solution?")
     doSolveWcs = pexConfig.Field(dtype=bool, default=True, doc="Solve distortion and wcs?")
     doSolveFlux = pexConfig.Field(dtype=bool, default=True, doc="Solve flux correction?")
@@ -372,7 +372,6 @@ class MosaicTask(pipeBase.CmdLineTask):
         for ichip in ccdSet.keys():
             if num[ichip] == 0:
                 ccdSet.erase(ichip)
-            
     def readCatalog(self, dataRefList, ct=None, numCoresForReadSource=1, readTimeout=9999, verbose=False):
         self.log.info("Reading catalogs ...")
         self.log.info("Use %d cores for reading source catalog" % (numCoresForReadSource))
