@@ -148,15 +148,15 @@ class MosaicConfig(pexConfig.Config):
     extendednessForStarSelection = pexConfig.Field(
         doc="Extendedness for star selection",
         dtype=str,
-        default='classification.extendedness')
+        default='base_ClassificationExtendedness_value')
     saturatedForStarSelection = pexConfig.Field(
         doc="Saturated flag for star selection",
         dtype=str,
-        default='flags.pixel.saturated.any')
+        default='base_PixelFlags_flag_saturated')
     psfStarForStarSelection = pexConfig.Field(
         doc="PSF star flag for star selection",
         dtype=str,
-        default='calib.psf.used')
+        default='calib_psfUsed')
 
 class SourceReader(object):
     """ Object to read source catalog.

@@ -36,7 +36,7 @@ namespace lsst {
                     _astromBad(!lsst::utils::isfinite(_flux))
                     {
                         try {
-                            _err = record.get(record.getSchema().find<double>("flux.err").key);
+                            _err = record.get(record.getSchema().find<double>("fluxSigma").key);
                         } catch (pex::exceptions::NotFoundError const&) {
 			    // flux.err is not availabe. sqrt of flux will be used
 			    // 1.E-08 is a scaling factor to make mag_err ~ 0.1mag for 15 mag
