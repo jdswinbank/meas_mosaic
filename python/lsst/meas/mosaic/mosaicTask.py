@@ -18,9 +18,10 @@ import lsst.afw.coord                   as afwCoord
 import lsst.afw.math                    as afwMath
 import lsst.pex.config                  as pexConfig
 import lsst.pipe.base                   as pipeBase
-import lsst.meas.mosaic.mosaicLib       as measMosaic
+import lsst.meas.algorithms             as measAlg
 import lsst.meas.astrom                 as measAstrom
-from lsst.meas.photocal.colorterms import ColortermLibraryConfig
+import lsst.meas.mosaic.mosaicLib       as measMosaic
+from lsst.pipe.tasks.colorterms import ColortermLibrary
 
 from lsst.meas.base.forcedPhotCcd import PerTractCcdDataIdContainer
 
@@ -142,7 +143,7 @@ class MosaicConfig(pexConfig.Config):
     doSolveWcs = pexConfig.Field(dtype=bool, default=True, doc="Solve distortion and wcs?")
     doSolveFlux = pexConfig.Field(dtype=bool, default=True, doc="Solve flux correction?")
     commonFluxCorr = pexConfig.Field(dtype=bool, default=True, doc="Is flux correction common between exposures?")
-    colorterms = pexConfig.ConfigField(dtype=ColortermLibraryConfig, doc="Color term library")
+    colorterms = pexConfig.ConfigField(dtype=ColortermLibrary, doc="Color term library")
 
 def setCatFlux(m, f, key):
     m.first.set(key, f)
@@ -285,23 +286,37 @@ class MosaicTask(pipeBase.CmdLineTask):
                     matches = astrom.joinMatchListWithCatalog(packedMatches, icSrces)
 
                 matches = [m for m in matches if m.first != None]
-                matches[0].first.schema.getAliasMap().set("flux", matches[0].first.schema.join(
-                                                          filterName, "flux"))
-                matches[0].first.schema.getAliasMap().set("fluxSigma", matches[0].first.schema.join(
-                                                          filterName, "fluxSigma"))
 
-                if ct != None and len(matches) != 0:
+                if matches:
                     refSchema = matches[0].first.schema
-                    key_p = refSchema.find(refSchema.join(ct.primary, "flux")).key
-                    key_s = refSchema.find(refSchema.join(ct.secondary, "flux")).key
-                    key_f = refSchema.find("flux").key
-                    refFlux1 = numpy.array([m.first.get(key_p) for m in matches])
-                    refFlux2 = numpy.array([m.first.get(key_s) for m in matches])
-                    refMag1 = -2.5*numpy.log10(refFlux1)
-                    refMag2 = -2.5*numpy.log10(refFlux2)
-                    refMag = ct.transformMags(refMag1, refMag2)
-                    refFlux = numpy.power(10.0, -0.4*refMag)
-                    matches = [setCatFlux(m, f, key_f) for m, f in zip(matches, refFlux) if f == f]
+                    if ct:
+                        # Add a "flux" field to the match records which contains the
+                        # colorterm-corrected reference flux. The field name is hard-coded in
+                        # lsst::meas::mosaic::Source.
+                        mapper = afwTable.SchemaMapper(refSchema)
+                        for key, field in refSchema:
+                            mapper.addMapping(key)
+                        key_f = mapper.editOutputSchema().addField("flux", type=float, doc="Reference flux")
+                        table = afwTable.SimpleTable.make(mapper.getOutputSchema())
+                        table.preallocate(len(matches))
+                        for match in matches:
+                            newMatch = table.makeRecord()
+                            newMatch.assign(match.first, mapper)
+                            match.first = newMatch
+
+                        key_p = refSchema.find(refSchema.join(ct.primary, "flux")).key
+                        key_s = refSchema.find(refSchema.join(ct.secondary, "flux")).key
+                        refFlux1 = numpy.array([m.first.get(key_p) for m in matches])
+                        refFlux2 = numpy.array([m.first.get(key_s) for m in matches])
+                        refMag1 = -2.5*numpy.log10(refFlux1)
+                        refMag2 = -2.5*numpy.log10(refFlux2)
+                        refMag = ct.transformMags(refMag1, refMag2)
+                        refFlux = numpy.power(10.0, -0.4*refMag)
+                        matches = [setCatFlux(m, f, key_f) for m, f in zip(matches, refFlux) if f == f]
+                    else:
+                        # No colorterm; we can get away with aliasing the reference flux.
+                        refFluxField = measAlg.getRefFluxField(refSchema, filterName)
+                        refSchema.getAliasMap().set("flux", refFluxField)
 
             selSources = self.selectStars(sources)
             selMatches = self.selectStars(matches)
@@ -1472,7 +1487,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             return None
 
         if self.config.doColorTerms:
-            ct = self.config.colorterms.selectColorTerm(filters[0])
+            ct = self.config.colorterms.getColorterm(filters[0])
         else:
             ct = None
 
