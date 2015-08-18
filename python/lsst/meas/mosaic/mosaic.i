@@ -15,6 +15,7 @@
 #include "lsst/meas/mosaic/fluxfit.h"
 #include "lsst/meas/mosaic/spatialCellSource.h"
 #include "lsst/meas/mosaic/matches.h"
+#include "lsst/meas/mosaic/shimCameraGeom.h"
 %}
 
 %include "std_vector.i"
@@ -42,6 +43,7 @@
 %include "lsst/meas/mosaic/fluxfit.h"
 %include "lsst/meas/mosaic/spatialCellSource.h"
 %include "lsst/meas/mosaic/matches.h"
+%include "lsst/meas/mosaic/shimCameraGeom.h"
 
 %template(SourceSet) std::vector<PTR(lsst::meas::mosaic::Source)>;
 %template(SourceGroup) std::vector<std::vector<PTR(lsst::meas::mosaic::Source)> >;
