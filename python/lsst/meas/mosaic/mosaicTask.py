@@ -356,11 +356,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                     dataRef.datasetExists('icMatch')):
                     wcs = self.getWcsForCcd(dataRef)
                     ccd = ccdSet[dataRef.dataId['ccd']]
-
-                    pSize = ccd.getPixelSize()
-                    mmToPixels = afwGeom.LinearTransform.makeScaling(1.0/pSize.getX(), 1.0/pSize.getY())
-                    offset = mmToPixels(ccd.getCenter(cameraGeom.FOCAL_PLANE).getPoint())
-
+                    offset = measMosaic.getCenterInFpPixels(ccd)
                     wcs.shiftReferencePixel(offset[0], offset[1])
                     wcsDic[dataRef.dataId['visit']] = wcs
 
@@ -523,15 +519,13 @@ class MosaicTask(pipeBase.CmdLineTask):
 
     def plotCcd(self, coeffx0=0, coeffy0=0):
         for ccd in self.ccdSet.values():
-            w = ccd.getBBox().getWidth()
-            h = ccd.getBBox().getHeight()
+            w = measMosaic.getWidth(ccd)
+            h = measMosaic.getHeight(ccd)
             us = list()
             vs = list()
             for x, y in zip([0, w, w, 0, 0], [0, 0, h, h, 0]):
                 xy = afwGeom.Point2D(x, y)
-                pSize = ccd.getPixelSize()
-                mmToPixels = afwGeom.LinearTransform.makeScaling(1.0/pSize.getX(), 1.0/pSize.getY())
-                u, v = mmToPixels(ccd.transform(ccd.makeCameraPoint(xy, cameraGeom.PIXELS), cameraGeom.FOCAL_PLANE).getPoint())
+                u, v = measMosaic.detPxToFpPx(ccd, xy)
                 us.append(u)
                 vs.append(v)
             plt.plot(us, vs, 'k-')
@@ -979,14 +973,11 @@ class MosaicTask(pipeBase.CmdLineTask):
         _r = []
         _dm = []
         for ccd in self.ccdSet.values():
-            w = ccd.getBBox().getWidth()
-            h = ccd.getBBox().getHeight()
+            w = measMosaic.getWidth(ccd)
+            h = measMosaic.getHeight(ccd)
 
-            pSize = ccd.getPixelSize()
-            mmToPixels = afwGeom.LinearTransform.makeScaling(1.0/pSize.getX(), 1.0/pSize.getY())
-
-            _x0 = mmToPixels(ccd.getCenter(cameraGeom.FOCAL_PLANE).getPoint())[0] + 0.5 * w
-            _y0 = mmToPixels(ccd.getCenter(cameraGeom.FOCAL_PLANE).getPoint())[1] + 0.5 * h
+            _x0 = measMosaic.getCenterInFpPixels(ccd)[0] + 0.5*w
+            _y0 = measMosaic.getCenterInFpPixels(ccd)[1] + 0.5*h
 
             _r.append(math.sqrt(_x0*_x0 + _y0*_y0))
             _dm.append(-2.5 * math.log10(self.fchip[int(ccd.getSerial())]))
@@ -1080,11 +1071,8 @@ class MosaicTask(pipeBase.CmdLineTask):
         f = open(os.path.join(self.outputDir, "ccd.dat"), "wt")
         for ichip in self.ccdSet.keys():
             ccd = self.ccdSet[ichip]
-            pSize = ccd.getPixelSize()
-            mmToPixels = afwGeom.LinearTransform.makeScaling(1.0/pSize.getX(), 1.0/pSize.getY())
-            center = mmToPixels(ccd.getCenter(cameraGeom.FOCAL_PLANE).getPoint())
-            orient = ccd.getOrientation()
-            f.write("%3ld %10.3f %10.3f %10.7f\n" % (ichip, center[0], center[1], orient.getYaw()))
+            center = measMosaic.getCenterInFpPixels(ccd)
+            f.write("%3ld %10.3f %10.3f %10.7f\n" % (ichip, center[0], center[1], measMosaic.getYaw(ccd)))
         f.close()
 
         for iexp in self.coeffSet.keys():
