@@ -4,6 +4,7 @@ config.log
 *.o
 *.os
 *.so
+*.dylib
 *.cfgc
 *.pyc
 *_wrap.cc
@@ -14,3 +15,7 @@ doc/*.inc
 doc/doxygen.conf
 tests/.tests
 version.py
+bin/calibrateCatalog.py
+bin/calibrateExposure.py
+bin/checkMosaic.py
+bin/mosaic.py
