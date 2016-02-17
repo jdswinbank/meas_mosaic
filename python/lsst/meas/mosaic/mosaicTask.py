@@ -227,18 +227,29 @@ class SourceReader(object):
 
             sources = dataRef.get('src', immediate=True, flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
 
-            matchFull = dataRef.get('icMatchFull', immediate=True)
-            matches = measMosaic.matchesFromCatalog(matchFull)
-            icSrces = dataRef.get('icSrc', immediate=True)
-            for slot in ("PsfFlux", "ModelFlux", "ApFlux", "InstFlux", "Centroid", "Shape", "CalibFlux"):
-                getattr(matches[0].second.getTable(), "define" + slot)(getattr(icSrces, "get" + slot + "Definition")())
+            refObjLoader = measAstrom.LoadAstrometryNetObjectsTask(measAstrom.LoadAstrometryNetObjectsTask.ConfigClass())
+            icMatch = dataRef.get('icMatch', immediate=True)
+            icSrc = dataRef.get('icSrc', immediate=True)
+            matches = refObjLoader.joinMatchListWithCatalog(icMatch, icSrc)
 
             matches = [m for m in matches if m.first is not None]
+            refSchema = matches[0].first.schema if matches else None
             if self.cterm is not None and len(matches) != 0:
-                refSchema = matches[0].first.schema
+                # Add a "flux" field to the input schema of the first element
+                # of the match and populate it with a colorterm correct flux.
+                mapper = afwTable.SchemaMapper(refSchema)
+                for key, field in refSchema:
+                    mapper.addMapping(key)
+                key_f = mapper.editOutputSchema().addField("flux", type=float, doc="Reference flux")
+                table = afwTable.SimpleTable.make(mapper.getOutputSchema())
+                table.preallocate(len(matches))
+                for match in matches:
+                    newMatch = table.makeRecord()
+                    newMatch.assign(match.first, mapper)
+                    match.first = newMatch
+
                 key_p = refSchema.find(self.cterm.primary).key
                 key_s = refSchema.find(self.cterm.secondary).key
-                key_f = refSchema.find("flux").key
                 refFlux1 = numpy.array([m.first.get(key_p) for m in matches])
                 refFlux2 = numpy.array([m.first.get(key_s) for m in matches])
                 refMag1 = -2.5*numpy.log10(refFlux1)
@@ -246,6 +257,10 @@ class SourceReader(object):
                 refMag = self.cterm.transformMags(refMag1, refMag2)
                 refFlux = numpy.power(10.0, -0.4*refMag)
                 matches = [self.setCatFlux(m, f, key_f) for m, f in zip(matches, refFlux) if f == f]
+            else:
+                filterName = afwImage.Filter(calexp_md).getName()
+                refFluxField = measAlg.getRefFluxField(refSchema, filterName)
+                refSchema.getAliasMap().set("flux", refFluxField)
 
             selSources = self.selectStars(sources, self.config.includeSaturated)
             selMatches = self.selectStars(matches, self.config.includeSaturated)
