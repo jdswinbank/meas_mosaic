@@ -159,6 +159,11 @@ class MosaicConfig(pexConfig.Config):
         doc="PSF star flag for star selection",
         dtype=str,
         default='calib_psfUsed')
+    coaddName = pexConfig.Field(
+        doc="Type of coadd being produced; used to select the correct SkyMap.",
+        dtype=str,
+        default="deep")
+
 
 class SourceReader(object):
     """ Object to read source catalog.
