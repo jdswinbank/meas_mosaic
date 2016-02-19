@@ -30,16 +30,25 @@ def applyMosaicResultsExposure(dataRef, calexp=None):
     mosaic = getMosaicResults(dataRef, calexp.getDimensions())
     if mosaic.wcs is not None:
         calexp.setWcs(mosaic.wcs)
-    calexp.getCalib().setFluxMag0(mosaic.calib.getFluxMag0())
-    mi = calexp.getMaskedImage()
-    mi *= mosaic.fcor
+    if mosaic.calib is not None:
+        calexp.getCalib().setFluxMag0(mosaic.calib.getFluxMag0())
+    if mosaic.fcor is not None:
+        mi = calexp.getMaskedImage()
+        mi *= mosaic.fcor
     return Struct(exposure=calexp, mosaic=mosaic)
 
 def getFluxFitParams(dataRef):
     """Retrieve the flux correction parameters determined by meas_mosaic"""
-    ffpHeader = dataRef.get("fcr_md", immediate=True)
-    calib = afwImage.Calib(ffpHeader)
-    ffp = FluxFitParams(ffpHeader)
+    # If meas_mosaic was configured to only solve astrometry (doSolveFlux=False),
+    # this data will not have been saved. We use None as a placeholder.
+    try:
+        wcsHeader = dataRef.get("wcs_md", immediate=True)
+        ffpHeader = dataRef.get("fcr_md", immediate=True)
+        calib = afwImage.Calib(ffpHeader)
+        ffp = FluxFitParams(ffpHeader)
+    except FitsError:
+        calib = None
+        ffp = None
     return Struct(ffp=ffp, calib=calib, wcs=getWcs(dataRef))
 
 def getWcs(dataRef):
@@ -65,13 +74,17 @@ def getMosaicResults(dataRef, dims=None):
         width, height = calexpHeader.get("NAXIS1"), calexpHeader.get("NAXIS2")
     else:
         width, height = dims
-    fcor = getFCorImg(ffp.ffp, width, height)
-    if ffp.wcs is not None:
-        jcor = getJImg(ffp.wcs, width, height)
+
+    if ffp.ffp is not None:
+        fcor = getFCorImg(ffp.ffp, width, height)
+        if ffp.wcs is not None:
+            jcor = getJImg(ffp.wcs, width, height)
+        else:
+            jcor = getJImg(afwImage.makeWcs(calexpHeader), width, height)
+        fcor *= jcor
+        del jcor
     else:
-        jcor = getJImg(afwImage.makeWcs(calexpHeader), width, height)
-    fcor *= jcor
-    del jcor
+        fcor = None
 
     return Struct(wcs=ffp.wcs, calib=ffp.calib, fcor=fcor)
 
