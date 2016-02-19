@@ -5,6 +5,7 @@ from .mosaicLib import getFCorImg, FluxFitParams, getJImg, calculateJacobian
 from lsst.pipe.base import Struct
 import lsst.afw.table as afwTable
 import lsst.afw.image as afwImage
+from lsst.afw.fits import FitsError
 
 __all__ = ("applyMosaicResults", "getMosaicResults", "applyMosaicResultsExposure", "applyMosaicResultsCatalog",
            "applyCalib")
@@ -27,7 +28,8 @@ def applyMosaicResultsExposure(dataRef, calexp=None):
         calexp = dataRef.get("calexp", immediate=True)
 
     mosaic = getMosaicResults(dataRef, calexp.getDimensions())
-    calexp.setWcs(mosaic.wcs)
+    if mosaic.wcs is not None:
+        calexp.setWcs(mosaic.wcs)
     calexp.getCalib().setFluxMag0(mosaic.calib.getFluxMag0())
     mi = calexp.getMaskedImage()
     mi *= mosaic.fcor
@@ -42,7 +44,12 @@ def getFluxFitParams(dataRef):
 
 def getWcs(dataRef):
     """Retrieve the Wcs determined by meas_mosaic"""
-    wcsHeader = dataRef.get("wcs_md", immediate=True)
+    # If meas_mosaic was configured to only solve photometry (doSolveWcs=False),
+    # this data will not have been saved. We catch the error and return None.
+    try:
+        wcsHeader = dataRef.get("wcs_md", immediate=True)
+    except FitsError:
+        return None
     return afwImage.makeWcs(wcsHeader)
 
 def getMosaicResults(dataRef, dims=None):
@@ -52,13 +59,17 @@ def getMosaicResults(dataRef, dims=None):
     """
     ffp = getFluxFitParams(dataRef)
 
-    if dims is None:
+    if dims is None or ffp.wcs is None:
         calexpHeader = dataRef.get("calexp_md", immediate=True)
+    if dims is None:
         width, height = calexpHeader.get("NAXIS1"), calexpHeader.get("NAXIS2")
     else:
         width, height = dims
     fcor = getFCorImg(ffp.ffp, width, height)
-    jcor = getJImg(ffp.wcs, width, height)
+    if ffp.wcs is not None:
+        jcor = getJImg(ffp.wcs, width, height)
+    else:
+        jcor = getJImg(afwImage.makeWcs(calexpHeader), width, height)
     fcor *= jcor
     del jcor
 
