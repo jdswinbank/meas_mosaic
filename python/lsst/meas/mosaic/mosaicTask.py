@@ -267,6 +267,16 @@ class SourceReader(object):
                 refFluxField = measAlg.getRefFluxField(refSchema, filterName)
                 refSchema.getAliasMap().set("flux", refFluxField)
 
+            def matchJanskyToDn(matches):
+                # LSST reads in a_net catalogs with flux in "janskys", so must convert back to DN
+                JANSKYS_PER_AB_FLUX = 3631.0
+                for m in matches:
+                    for k in m.first.schema.getNames():
+                        if "_flux" in k:
+                            m.first[k] /= JANSKYS_PER_AB_FLUX
+                return matches
+            matches = matchJanskyToDn(matches)
+
             selSources = self.selectStars(sources, self.config.includeSaturated)
             selMatches = self.selectStars(matches, self.config.includeSaturated)
 
