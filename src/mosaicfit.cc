@@ -2447,11 +2447,6 @@ lsst::meas::mosaic::solveMosaic_CCD_shot(int order,
 
             afw::cameraGeom::CameraTransformMap::Transforms newTr;
 
-            // Transform from pixels to pixels is the same on the new Detector as the old.
-            newTr[afw::cameraGeom::CameraSys(afw::cameraGeom::PIXELS, it->second->getName())] =
-                 it->second->getTransformMap()[afw::cameraGeom::CameraSys(afw::cameraGeom::PIXELS,
-                                                                          it->second->getName())];
-
             // Transform from pixels to focal plane has to be recalculated.
             newTr[afw::cameraGeom::FOCAL_PLANE] = boost::make_shared<afw::geom::AffineXYTransform const>
                                                   (newOrientation.makePixelFpTransform(pixelSize));
@@ -2488,11 +2483,6 @@ lsst::meas::mosaic::solveMosaic_CCD_shot(int order,
                 it->second->getOrientation().getRoll());
 
             afw::cameraGeom::CameraTransformMap::Transforms newTr;
-
-            // Transform from pixels to pixels is the same on the new Detector as the old.
-            newTr[afw::cameraGeom::CameraSys(afw::cameraGeom::PIXELS, it->second->getName())] =
-                 it->second->getTransformMap()[afw::cameraGeom::CameraSys(afw::cameraGeom::PIXELS,
-                                                                          it->second->getName())];
 
             // Transform from pixels to focal plane has to be recalculated.
             newTr[afw::cameraGeom::FOCAL_PLANE] = boost::make_shared<afw::geom::AffineXYTransform const>
