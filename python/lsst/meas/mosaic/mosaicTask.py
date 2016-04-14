@@ -211,7 +211,7 @@ class SourceReader(object):
         """ Read source catalog etc for input dataRef
 
         The followings are returned
-        Source catalog, matched list, and wcs will be read from 'src', 'icMatchFull', and 'calexp_md', respectively.
+        Source catalog, matched list, and wcs will be read from 'src', 'srcMatch', and 'calexp_md', respectively.
         If color transformation is given, it will be applied to reference flux of matched list.
         Source catalog and matched list will be converted to measMosaic's Source and SourceMatch and returned.
         The number of 'Source's in each cell defined by config.cellSize will be limited to brightest config.nStarPerCell.
@@ -233,9 +233,8 @@ class SourceReader(object):
             sources = dataRef.get('src', immediate=True, flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
 
             refObjLoader = measAstrom.LoadAstrometryNetObjectsTask(measAstrom.LoadAstrometryNetObjectsTask.ConfigClass())
-            icMatch = dataRef.get('icMatch', immediate=True)
-            icSrc = dataRef.get('icSrc', immediate=True)
-            matches = refObjLoader.joinMatchListWithCatalog(icMatch, icSrc)
+            srcMatch = dataRef.get('srcMatch', immediate=True)
+            matches = refObjLoader.joinMatchListWithCatalog(srcMatch, sources)
 
             matches = [m for m in matches if m.first is not None]
             refSchema = matches[0].first.schema if matches else None
@@ -359,7 +358,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         ccds = measMosaic.CcdSet()
         for dataRef in dataRefList:
             if not dataRef.dataId['ccd'] in ccds.keys():
-                ccd = dataRef.getButler().mapper.camera[int(dataRef.dataId['ccd'])]
+                ccd = dataRef.get('camera')[int(dataRef.dataId['ccd'])]
                 ccds[dataRef.dataId['ccd']] = ccd
         
         return ccds
@@ -382,8 +381,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             if not dataRef.dataId['visit'] in wcsDic.keys():
                 if (dataRef.datasetExists('calexp') and
                     dataRef.datasetExists('src') and
-                    dataRef.datasetExists('icSrc') and
-                    dataRef.datasetExists('icMatch')):
+                    dataRef.datasetExists('srcMatch')):
                     wcs = self.getWcsForCcd(dataRef)
                     ccd = ccdSet[dataRef.dataId['ccd']]
                     offset = measMosaic.getCenterInFpPixels(ccd)
@@ -399,8 +397,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                 num[dataRef.dataId['ccd']] = 0
             if (dataRef.datasetExists('calexp') and
                 dataRef.datasetExists('src') and
-                dataRef.datasetExists('icSrc') and
-                dataRef.datasetExists('icMatch')):
+                dataRef.datasetExists('srcMatch')):
                 num[dataRef.dataId['ccd']] += 1
 
         for ichip in ccdSet.keys():
